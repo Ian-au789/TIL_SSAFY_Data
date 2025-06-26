@@ -14,5 +14,11 @@
 pyvenv.cfg
 .venv
 pip-selfcheck.json
+.env
+
+# Copyright
+downloaded_manuals/
+parsed_json/
+processed_data_full.jsonl
 
 # End of https://www.toptal.com/developers/gitignore/api/venv
