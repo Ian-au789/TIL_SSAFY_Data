@@ -22,5 +22,8 @@ parsed_json/
 processed_data_full.jsonl
 chunked_data.jsonl
 qa_dataset.jsonl
+qa_dataset.jsonl
+qa_eval_result.json
+qa_eval_result_processed.csv
 
 # End of https://www.toptal.com/developers/gitignore/api/venv
