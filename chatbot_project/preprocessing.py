@@ -2,6 +2,7 @@ import os
 import json
 import fitz  # PyMuPDF
 import re
+import unicodedata
 from pathlib import Path
 
 # ========== 사용자 설정 ==========
@@ -12,53 +13,90 @@ output_path = Path("processed_data_full.jsonl")
 
 
 def extract_product_name_from_pdf(pdf_path: Path) -> str:
-    """PDF 메타데이터에서 title(product name) 추출"""
+    """PDF 메타데이터에서 title(product name) 추출, 실패 시 파일명 기반"""
     try:
         doc = fitz.open(pdf_path)
         title = doc.metadata.get("title", "").strip()
         doc.close()
+
+        if not title:
+            # 메타데이터가 비어있을 경우, 파일명에서 추출
+            title = pdf_path.stem.replace("_", " ").replace("-", " ").strip()
+
         return title
+
     except Exception as e:
         print(f"❌ {pdf_path.name} 메타데이터 추출 실패: {e}")
-        return ""
+        # 예외 발생 시에도 파일명에서 추출
+        return pdf_path.stem.replace("_", " ").replace("-", " ").strip()
 
+
+import re
+
+import re
 
 def preprocess_markdown(markdown_text: str) -> list[str]:
-    """Upstage 문서에서 추출된 마크다운 텍스트를 의미 있는 문장 단위로 정리"""
-    
-    # 마크다운 기본 제거
-    text = re.sub(r'#+\s*', '', markdown_text)  # 제목
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # 굵은 글씨
-    text = re.sub(r'\*(.*?)\*', r'\1', text)  # 이탤릭
+    import re
+
+    # 마크다운 제거
+    text = re.sub(r'#+\s*', '', markdown_text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     text = re.sub(r'_(.*?)_', r'\1', text)
-    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)  # 링크 텍스트만
-    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)  # 이미지 제거
-    text = re.sub(r'`{1,3}[^`]+`{1,3}', '', text)  # 코드블록 제거
-    text = re.sub(r'>\s?', '', text)  # 인용 제거
-    text = re.sub(r'\n[-*]{3,}\n', '\n', text)  # 수평선 제거
-    text = re.sub(r'^\d+\.\s+', '', text, flags=re.M)  # 번호 있는 리스트
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+    text = re.sub(r'`{1,3}[^`]+`{1,3}', '', text)
+    text = re.sub(r'>\s?', '', text)
+    text = re.sub(r'\n[-*]{3,}\n', '\n', text)
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.M)
 
     # 특수기호 및 잡음 정리
-    text = re.sub(r'[■●◆·\"\'\-–—•▶→∙·•]', '', text)
+    text = re.sub(r'[■●◆·\"\'\-–—•▶→∙·•☏⌀©ⓒ™®]', '', text)
     text = re.sub(r'\.{3,}', '.', text)
     text = re.sub(r'\n{2,}', '\n', text)
     text = text.strip()
 
-    # 문단 분할
+    # Unicode 정규화
+    text = unicodedata.normalize("NFKD", text)
+
+    # 라인 분리 및 공백 제거
     lines = [line.strip() for line in text.split('\n') if line.strip()]
 
     clean_lines = []
     for line in lines:
-        # 목차 스타일 제거 (예: 1.1 Something)
-        if re.match(r'^\d+(\.\d+)*\s+[A-Za-z가-힣]+', line):
+        # 전형적인 목차 포맷 제거 (점, 중괄호, 숫자 포함)
+        if re.match(r'^.*[\.・·•]{2,}[\s\.]*\d{1,3}$', line):
             continue
-        # 의미 없는 잔해 제거: 5단어 이하 & 특수문자 비율 높거나 알파벳 없는 경우
-        words = line.split()
-        if len(words) < 5:
+
+        # Copyright 및 boilerplate 제거
+        if re.search(r'Copyright|All rights reserved', line, re.IGNORECASE):
             continue
-        if sum(1 for c in line if not c.isalnum() and not c.isspace()) / len(line) > 0.3:
+
+        # 표 형식 제거
+        if line.startswith('|') or line.count('|') >= 2:
             continue
+
+        # 기술 명칭, 회로도 약어 제거 (CN1, FFC, DGND, SPI 등)
+        if re.search(r'\b(CN\d+|FFC|PWM|DGND|CLK|EEPROM|SENSOR|SPI|ROM|NAND|3\.3V|24VS|TXD|RXD|LSU|SMPS|TONER|CRUM|TR\.?\s?belt)\b', line):
+            continue
+
+        # 깨진 문자 제거
+        if re.search(r'[�]', line):
+            continue
+
+        # 비정상 한자/일문 제거
+        if re.search(r'[\u3000-\u30ff\u4e00-\u9fff]', line):
+            continue
+
+        # 숫자, 알파벳, 특수기호만 과도하게 섞인 줄 제거
+        if re.match(r'^[A-Z0-9\s\-\(\)\/\.:]+$', line) and len(line.split()) <= 6:
+            continue
+
+        # 너무 짧거나 불완전한 문장 제거
+        if len(line) < 10 or len(line.split()) < 4:
+            continue
+
         clean_lines.append(line)
 
     return clean_lines
