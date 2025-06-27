@@ -20,5 +20,7 @@ pip-selfcheck.json
 downloaded_manuals/
 parsed_json/
 processed_data_full.jsonl
+chunked_data.jsonl
+qa_dataset.jsonl
 
 # End of https://www.toptal.com/developers/gitignore/api/venv
