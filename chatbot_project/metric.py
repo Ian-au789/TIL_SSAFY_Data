@@ -7,7 +7,7 @@ from deepeval.dataset import EvaluationDataset
 from deepeval.metrics import HallucinationMetric, AnswerRelevancyMetric, ToxicityMetric
 from deepeval import evaluate
 
-# 1. 평가 결과를 dict로 변환하는 함수
+# 1. 평가 결과를 dict로 변환하는 함수 (✅ product_name 포함)
 def convert_eval_to_dict(test_cases, metrics: list):
     results = []
 
@@ -17,6 +17,7 @@ def convert_eval_to_dict(test_cases, metrics: list):
             "question": test_case.input,
             "answer": test_case.actual_output,
             "context": test_case.context[0] if test_case.context else "",
+            "product_name": test_case.additional_metadata.get("product_name", "Unknown"),
             "failed_metrics": [],
         }
 
@@ -40,23 +41,27 @@ def convert_eval_to_dict(test_cases, metrics: list):
 
     return results
 
-
-# 2. 환경 변수 로딩 및 OpenAI API Key 설정
+# 2. 환경 변수 로딩 및 API 설정
 load_dotenv()
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
-# 3. QA 데이터셋 로딩 (200개 샘플)
+# 3. QA 데이터셋 로딩
 qa_df = pd.read_json("qa_dataset_cleaned.jsonl", lines=True)
 qa_df = qa_df.sample(200, random_state=42)
 
-# 4. EvaluationDataset 구성
+# product 컬럼이 반드시 있어야 함
+if "product" not in qa_df.columns:
+    raise ValueError("qa_df에 'product' 컬럼이 없습니다. 제품 정보를 포함시켜주세요.")
+
+# 4. EvaluationDataset 구성 (✅ product_name 추가)
 dataset = EvaluationDataset()
-for q, a in zip(qa_df["question"], qa_df["answer"]):
+for q, a, p in zip(qa_df["question"], qa_df["answer"], qa_df["product"]):
     dataset.add_test_case(
         LLMTestCase(
             input=q,
             actual_output=a,
-            context=[a]  # context가 없을 경우 answer 기반
+            context=[a],
+            additional_metadata={"product": p}
         )
     )
 
@@ -65,19 +70,16 @@ hal_metric = HallucinationMetric(threshold=0.3, model="gpt-4o-mini")
 relevan_metric = AnswerRelevancyMetric(threshold=0.5, model="gpt-4o-mini")
 toxicity_metric = ToxicityMetric(threshold=0.5, model="gpt-4o-mini")
 
-# 1. 평가 실행
+# 6. 평가 실행
 evaluation_result = evaluate(dataset, [hal_metric, relevan_metric, toxicity_metric])
 
-# 2. 평가 결과를 JSON 형식으로 저장
+# 7. 평가 결과 저장
 def save_eval_result_to_json(path, result):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result.model_dump(), f, ensure_ascii=False, indent=2)
 
-# 3. 경로 설정
-save_path = "qa_eval_result.json"
-temp_path = "qa_eval_result_temp.json"
-
-# 4. 저장 및 복사
+save_path = "qa_eval_result2.json"
+temp_path = "qa_eval_result_temp2.json"
 save_eval_result_to_json(save_path, evaluation_result)
 os.system(f"cp {save_path} {temp_path}")
 
