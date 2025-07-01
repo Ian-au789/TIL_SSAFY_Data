@@ -47,7 +47,6 @@ os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 # 3. QA 데이터셋 로딩
 qa_df = pd.read_json("qa_dataset_cleaned.jsonl", lines=True)
-qa_df = qa_df.sample(200, random_state=42)
 
 # product 컬럼이 반드시 있어야 함
 if "product" not in qa_df.columns:
@@ -78,8 +77,8 @@ def save_eval_result_to_json(path, result):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result.model_dump(), f, ensure_ascii=False, indent=2)
 
-save_path = "qa_eval_result2.json"
-temp_path = "qa_eval_result_temp2.json"
+save_path = "qa_eval_result3.json"
+temp_path = "qa_eval_result_temp3.json"
 save_eval_result_to_json(save_path, evaluation_result)
 os.system(f"cp {save_path} {temp_path}")
 

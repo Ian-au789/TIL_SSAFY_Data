@@ -2,7 +2,7 @@ import json
 import pandas as pd
 
 # 평가 결과 JSON 불러오기
-with open("qa_eval_result2.json", "r", encoding="utf-8") as f:
+with open("qa_eval_result3.json", "r", encoding="utf-8") as f:
     eval_result_dict = json.load(f)
 
 # 평가 결과 리스트
