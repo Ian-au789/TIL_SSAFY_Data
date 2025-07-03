@@ -18,6 +18,7 @@ pip-selfcheck.json
 
 # Copyright
 downloaded_manuals/
+datasets/
 parsed_json/
 processed_data_full.jsonl
 chunked_data.jsonl
